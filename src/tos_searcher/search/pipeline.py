@@ -28,6 +28,7 @@ class SearchPipeline:
         self._db = db
         self._progress_callback = progress_callback
         self._stop_requested = False
+        self._results_count = 0
 
         self._search_engine = SearchEngine(settings, db, progress_callback)
         self._fetcher = Fetcher(settings)
@@ -41,6 +42,11 @@ class SearchPipeline:
     def run(self) -> None:
         """Execute the full four-phase pipeline."""
         try:
+            # Load existing results count from DB (for incremental runs)
+            self._results_count = self._db.count_results(
+                self._settings.min_confidence_threshold
+            )
+
             # Phase 1: Discovery (0% - 30%)
             self._report("discovery", "Starting URL discovery...")
             self._search_engine.run_discovery()
@@ -63,16 +69,15 @@ class SearchPipeline:
 
             # Phase 4: Complete
             stats = self._db.get_stats()
-            results = self._db.get_all_results(self._settings.min_confidence_threshold)
             self._progress_callback(
                 SearchProgress(
                     phase="complete",
                     total_discovered=stats.get("total", 0),
                     total_fetched=stats.get("fetched", 0) + stats.get("analyzed", 0),
                     total_analyzed=stats.get("analyzed", 0),
-                    total_results=len(results),
+                    total_results=self._results_count,
                     current_action=(
-                        f"Search complete! Found {len(results)} potential hidden "
+                        f"Search complete! Found {self._results_count} potential hidden "
                         f"contest(s) in {stats.get('analyzed', 0)} documents."
                     ),
                     percent_complete=1.0,
@@ -114,7 +119,6 @@ class SearchPipeline:
                 title = self._parser.extract_title(result.html)
 
                 if len(text) < 100:
-                    # Too little content — probably not a real TOS page
                     self._db.update_document_status(
                         doc.id, "error", error_message="Insufficient content"
                     )
@@ -173,6 +177,7 @@ class SearchPipeline:
                     pattern_matches=detection.pattern_names,
                 )
                 self._db.insert_result(result)
+                self._results_count += 1
                 logger.info(
                     "MATCH: %s (%.1f%%) - %s",
                     doc.url,
@@ -189,16 +194,13 @@ class SearchPipeline:
         total = sum(stats.values())
         fetched = stats.get("fetched", 0) + stats.get("analyzed", 0)
         analyzed = stats.get("analyzed", 0)
-        results_count = len(
-            self._db.get_all_results(self._settings.min_confidence_threshold)
-        )
         self._progress_callback(
             SearchProgress(
                 phase=phase,
                 total_discovered=total,
                 total_fetched=fetched,
                 total_analyzed=analyzed,
-                total_results=results_count,
+                total_results=self._results_count,
                 current_action=action,
                 percent_complete=percent,
                 is_running=True,

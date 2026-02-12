@@ -26,9 +26,9 @@ class DocumentParser:
 
         # Remove elements with noise-related classes/IDs
         for el in soup.find_all(True):
-            if isinstance(el, Tag):
-                classes = " ".join(el.get("class", []))
-                el_id = el.get("id", "") or ""
+            if isinstance(el, Tag) and el.attrs:
+                classes = " ".join(el.get("class") or [])
+                el_id = el.get("id") or ""
                 combined = f"{classes} {el_id}".lower()
                 if any(p in combined for p in NOISE_PATTERNS):
                     el.decompose()

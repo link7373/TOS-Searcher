@@ -268,10 +268,18 @@ class Database:
 
     # --- Stats ---
 
+    def count_results(self, min_confidence: float = 0.0) -> int:
+        assert self._conn is not None
+        row = self._conn.execute(
+            "SELECT COUNT(*) as cnt FROM results WHERE confidence >= ?",
+            (min_confidence,),
+        ).fetchone()
+        return row["cnt"] if row else 0
+
     def get_stats(self) -> dict[str, int]:
         counts = self.count_by_status()
         total = sum(counts.values())
-        results_count = len(self.get_all_results())
+        results_count = self.count_results()
         return {
             "total": total,
             "pending": counts.get("pending", 0),

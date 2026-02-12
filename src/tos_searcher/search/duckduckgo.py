@@ -17,19 +17,19 @@ class DuckDuckGoProvider:
 
     def search(self, query: str, max_results: int = 50) -> list[str]:
         try:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
         except ImportError:
-            logger.warning("duckduckgo-search not installed, skipping DuckDuckGo")
+            logger.warning("ddgs not installed, skipping DuckDuckGo")
             return []
 
         urls: list[str] = []
         try:
-            with DDGS() as ddgs:
-                results = ddgs.text(query, max_results=max_results)
-                for r in results:
-                    url = r.get("href") or r.get("link")
-                    if url:
-                        urls.append(url)
+            ddgs = DDGS()
+            results = ddgs.text(query, max_results=max_results)
+            for r in results:
+                url = r.get("href") or r.get("link")
+                if url:
+                    urls.append(url)
         except Exception as e:
             logger.warning("DuckDuckGo search failed for '%s': %s", query, e)
 
